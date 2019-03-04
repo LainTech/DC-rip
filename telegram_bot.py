@@ -26,6 +26,16 @@ def save_subscribers():
         pickle.dump(subscribers, f)
 
 
+def add_subscriber(id):
+    subscribers.add(id)
+    save_subscribers()
+
+
+def remove_subscriber(id):
+    subscribers.remove(id)
+    save_subscribers()
+
+
 def status(update, context):
     """Send current server status."""
     update.message.reply_text(server.get_status()[0])
@@ -37,38 +47,42 @@ def subscribe(update, context):
     if chatid in subscribers:
         update.message.reply_text('You are already subscribed')
     else:
-        subscribers.add(chatid)
+        add_subscriber(chatid)
         update.message.reply_text('Subscribed')
-    save_subscribers()
 
 
 def unsubscribe(update, context):
     """Unsubscribe user from notification."""
     chatid = update.effective_chat.id
     if chatid in subscribers:
-        subscribers.remove(chatid)
+        remove_subscriber(chatid)
         update.message.reply_text('Unsubscribed')
     else:
         update.message.reply_text('You have not subscribed')
-    save_subscribers()
 
 
 def notify_subscribers(context):
     """Check server state updates and sent them to users"""
     global last_update
     update = server.get_status()
+    to_remove = set()
     if update[1] is not last_update:
         last_update = update[1]
         for subscriber in subscribers:
-            context.bot.send_message(chat_id=subscriber, text=update[0])
+            try:
+                context.bot.send_message(chat_id=subscriber, text=update[0])
+            except:
+                to_remove.add(subscriber)
+    for id in to_remove:
+        # Remove blocked chat
+        remove_subscriber(id)
 
 
 def main():
     updater = Updater(args.bot_token, use_context=True)
     dp = updater.dispatcher
-
     job_queue = updater.job_queue
-    job_queue.run_repeating(notify_subscribers, 10, 0)
+    job_queue.run_repeating(notify_subscribers, args.interval, 0)
 
     dp.add_handler(CommandHandler("status", status))
     dp.add_handler(CommandHandler("subscribe", subscribe))
@@ -80,7 +94,9 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('bot_token', help='Telegram bot token')
+    parser.add_argument('bot_token', help='Telegram bot token', type=str)
+    parser.add_argument('--interval', default=60, type=int,
+                        help='Availability check interval in seconds. Default is 60')
     args = parser.parse_args()
     load_subscribers()
     main()
