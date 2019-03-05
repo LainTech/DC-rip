@@ -6,10 +6,6 @@ from telegram.ext import Updater, CommandHandler
 from lifechecker import Server
 
 subscribers = set()
-server = Server('89.188.9.59')
-server.add_service('nginx', 80)
-server.add_service('BIND', 53)
-last_update = server.get_status()[1]
 
 
 def load_subscribers():
@@ -94,9 +90,21 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('bot_token', help='Telegram bot token', type=str)
-    parser.add_argument('--interval', default=60, type=int,
+    parser.add_argument('bot_token', type=str, help='Telegram bot token')
+    parser.add_argument('host', type=str, help='Host address')
+    parser.add_argument('services', type=str,
+                        help='Comma separated service:port. Example: nginx:80,bind:53')
+    parser.add_argument('-i', dest='interval', default=60,
                         help='Availability check interval in seconds. Default is 60')
     args = parser.parse_args()
+
+    # Init Server
+    server = Server(args.host)
+    services = args.services.split(',')
+    for service in services:
+        service = service.split(':')
+        server.add_service(service[0], int(service[1]))
+
+    last_update = server.get_status()[1]
     load_subscribers()
     main()
